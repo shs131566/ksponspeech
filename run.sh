@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-data=ksponspeech
+data=$1
 
 nj=16
 vocab_size=100000
