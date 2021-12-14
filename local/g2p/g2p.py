@@ -1,12 +1,46 @@
 # -*- coding: utf-8 -*-
+'''
+g2p.py
+~~~~~~~~~~
 
-# This is refered to https://github.com/scarletcho/KoG2P
+This script converts Korean graphemes to romanized phones and then to pronunciation.
 
+    (1) graph2phone: convert Korean graphemes to romanized phones
+    (2) phone2prono: convert romanized phones to pronunciation
+    (3) graph2phone: convert Korean graphemes to pronunciation
+
+Usage:  $ python g2p.py '스물 여덟째 사람'
+        (NB. Please check 'rulebook_path' before usage.)
+
+Yejin Cho (ycho@utexas.edu)
+Jaegu Kang (jaekoo.jk@gmail.com)
+Hyungwon Yang (hyung8758@gmail.com)
+Yeonjung Hong (yvonne.yj.hong@gmail.com)
+
+Created: 2016-08-11
+Last updated: 2019-01-31 Yejin Cho
+
+* Key updates made:
+    - Executable in both Python 2 and 3.
+    - G2P Performance test available ($ python g2p.py test)
+    - G2P verbosity control available
+
+'''
+
+import datetime as dt
 import re
 import math
 import sys
+import optparse
 import os
 
+# Option
+parser = optparse.OptionParser()
+parser.add_option("-v", action="store_true", dest="verbose", default="False",
+                  help="This option prints the detail information of g2p process.")
+
+(options,args) = parser.parse_args()
+verbose = options.verbose
 
 # Check Python version
 ver_info = sys.version_info
@@ -15,12 +49,36 @@ if ver_info[0] == 2:
     reload(sys)
     sys.setdefaultencoding('utf-8')
 
+
+def readfileUTF8(fname):
+    f = open(fname, 'r')
+    corpus = []
+
+    while True:
+        line = f.readline()
+        line = line.encode("utf-8")
+        line = re.sub(u'\n', u'', line)
+        if line != u'':
+            corpus.append(line)
+        if not line: break
+
+    f.close()
+    return corpus
+
+
+def writefile(body, fname):
+    out = open(fname, 'w')
+    for line in body:
+        out.write('{}\n'.format(line))
+    out.close()
+
+
 def readRules(pver, rule_book):
     if pver == 2:
         f = open(rule_book, 'r')
     elif pver == 3:
          f = open(rule_book, 'r',encoding="utf-8")
-         
+
     rule_in = []
     rule_out = []
 
@@ -50,6 +108,7 @@ def isHangul(charint):
     hangul_init = 44032
     hangul_fin = 55203
     return charint >= hangul_init and charint <= hangul_fin
+
 
 def checkCharType(var_list):
     #  1: whitespace
@@ -189,6 +248,11 @@ def graph2prono(graphs, rule_in, rule_out):
     identical = False
     loop_cnt = 1
 
+    if verbose == True:
+        print ('=> Romanized: ' + romanized)
+        print ('=> Romanized with boundaries: ' + romanized_bd)
+        print ('=> Initial output: ' + prono)
+
     while not identical:
         prono_new = phone2prono(re.sub(u' ', u',', prono_prev + u','), rule_in, rule_out)
         prono_new = re.sub(u',', u' ', prono_new)
@@ -197,11 +261,45 @@ def graph2prono(graphs, rule_in, rule_out):
         if re.sub(u'-', u'', prono_prev) == re.sub(u'-', u'', prono_new):
             identical = True
             prono_new = re.sub(u'-', u'', prono_new)
+            if verbose == True:
+                print('\n=> Exhaustive rule application completed!')
+                print('=> Total loop count: ' + str(loop_cnt))
+                print('=> Output: ' + prono_new)
         else:
+            if verbose == True:
+                print('\n=> Rule applied for more than once')
+                print('cmp1: ' + re.sub(u'-', u'', prono_prev))
+                print('cmp2: ' + re.sub(u'-', u'', prono_new))
             loop_cnt += 1
             prono_prev = prono_new
 
     return prono_new
+
+
+def testG2P(rulebook, testset):
+    [testin, testout] = readRules(ver_info[0], testset)
+    cnt = 0
+    body = []
+    for idx in range(0, len(testin)):
+        print('Test item #: ' + str(idx+1) + '/' + str(len(testin)))
+        item_in = testin[idx]
+        item_out = testout[idx]
+        ans = graph2phone(item_out)
+        ans = re.sub(u'-', u'', ans)
+        ans = addSpace(ans)
+
+        [rule_in, rule_out] = readRules(ver_info[0], rulebook)
+        pred = graph2prono(item_in, rule_in, rule_out)
+
+        if pred != ans:
+            print('G2P ERROR:  [result] ' + pred + '\t\t\t[ans] ' + item_in + ' [' + item_out + '] ' + ans)
+            cnt += 1
+        else:
+            body.append('[result] ' + pred + '\t\t\t[ans] ' + item_in + ' [' + item_out + '] ' + ans)
+
+    print('Total error item #: ' + str(cnt))
+    writefile(body,'good.txt')
+
 
 def runKoG2P(graph, rulebook):
     [rule_in, rule_out] = readRules(ver_info[0], rulebook)
@@ -213,7 +311,26 @@ def runKoG2P(graph, rulebook):
     return prono
 
 
+def runTest(rulebook, testset):
+    print('[ G2P Performance Test ]')
+    beg = dt.datetime.now()
+
+    testG2P(rulebook, testset)
+
+    end = dt.datetime.now()
+    print('Total time: ')
+    print(end - beg)
+
+
+
+# Usage:
 if __name__ == '__main__':
 
-    for line in sys.stdin:
-        print(line.rstrip('\n')+' '+runKoG2P(line, os.path.abspath('local/g2p/rulebook.txt')))
+    if sys.stdin == 'test':   # G2P Performance Test
+        runTest('rulebook.txt', 'testset.txt')
+
+    else:
+        for line in sys.stdin:
+            print(line.rstrip('\n')+' '+runKoG2P(line, os.path.abspath('local/g2p/rulebook.txt')))
+
+

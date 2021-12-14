@@ -106,9 +106,8 @@ if [ $stage -le 5 ]; then
     echo -e "Stage 5: Make lexicon from g2p"
     # make lexicon by G2P.
     # we use KoG2P (https://github.com/scarletcho/KoG2P)
-    # TODO: convert to PORORO G2P.
     sed -n '4, $ p' data/local/$lm_dir/vocab | python3 local/g2p/g2p.py \
-        | sed '/^▁ /d' > data/local/$lm_dir/lexicon_nosil.txt
+        | sed '/^▁ /d' | sort -u > data/local/$lm_dir/lexicon_nosil.txt
 
     echo "local/g2p/g2p.py: `wc -l data/local/$lm_dir/lexicon_nosil.txt` \
         words are used"
